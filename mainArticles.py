@@ -13,7 +13,7 @@ logger = logging.getLogger('my_logger')
 logger.setLevel(logging.DEBUG)  # Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 # Create file handler and set its logging level
-file_handler = logging.FileHandler('articlesLogger.log')
+file_handler = logging.FileHandler('Logs/articlesLogger.log')
 file_handler.setLevel(logging.DEBUG)  # Set the logging level for this handler
 
 # Create formatter

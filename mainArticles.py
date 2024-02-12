@@ -1,17 +1,34 @@
 import json
 import os
-
+import logging
 import requests
 from dotenv import find_dotenv, load_dotenv
 from zenpy import Zenpy
 
-# load .env
+# Load .env
 load_dotenv(find_dotenv())
 
+# Create logger
+logger = logging.getLogger('my_logger')
+logger.setLevel(logging.DEBUG)  # Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+# Create file handler and set its logging level
+file_handler = logging.FileHandler('articlesLogger.log')
+file_handler.setLevel(logging.DEBUG)  # Set the logging level for this handler
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# Add file handler to the logger
+logger.addHandler(file_handler)
+
+# Try to create 'articles' directory
 try:
     os.mkdir('articles')
-except:
-    pass
+    logger.info("Created 'articles' directory")
+except FileExistsError:
+    logger.debug("'articles' directory already exists")
 
 creds = {
     'email': os.environ.get('ZD_EMAIL'),
@@ -20,8 +37,8 @@ creds = {
 }
 
 subdomain = creds['subdomain']
-# Get email and token from environment variables
 
+# Get email and token from environment variables
 email = os.environ.get('ZD_EMAIL')
 token = os.environ.get('ZD_TOKEN')
 
@@ -30,13 +47,12 @@ user = email + '/token'
 
 credentials = user, token
 
-# rate limiting of 200
+# Rate limiting of 200
 zenpy_client = Zenpy(proactive_ratelimit=200, **creds)
 
-#We will filter the attachment types to donwload to only what is useful for privateGPT (pdf, doc, xml, xsl, xslt, docx, csv, htm, html, dot, odt, txt)
-#list here https://zappysys.zendesk.com/hc/en-us/articles/360034303774-Which-Content-Type-is-used-for-Multi-Part-Upload-File-Extension
-usefullAttachmentTypes = ['application/pdf','application/msword', 'text/xml', '	application/xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','text/html', 'html','application/msword','application/vnd.oasis.opendocument.text', 'text/plain']
-
+# We will filter the attachment types to download to only what is useful for privateGPT (pdf, doc, xml, xsl, xslt, docx, csv, htm, html, dot, odt, txt)
+# list here https://zappysys.zendesk.com/hc/en-us/articles/360034303774-Which-Content-Type-is-used-for-Multi-Part-Upload-File-Extension
+usefulAttachmentTypes = ['application/pdf', 'application/msword', 'text/xml', 'application/xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'text/html', 'html', 'application/msword', 'application/vnd.oasis.opendocument.text', 'text/plain']
 
 # Retrieve all sections
 sections = zenpy_client.help_center.sections()
@@ -48,9 +64,9 @@ for section in sections:
 
 categories = zenpy_client.help_center.categories().values
 
-#Crating folders to save each article in its category
+# Creating folders to save each article in its category
 for category in categories:
-    print (category.name)
+    logger.info(f"Creating folder for category '{category.name}'")
     folder_name = f"articles/{category.name}"
     subfolder1 = f"articles/{category.name}/json"
     subfolder2 = f"articles/{category.name}/attachments"
@@ -59,36 +75,28 @@ for category in categories:
         os.makedirs(folder_name, exist_ok=True)
         os.makedirs(subfolder1, exist_ok=True)
         os.makedirs(subfolder2, exist_ok=True)
-        print(f"Created folder for category '{category.name}'")
+        logger.debug(f"Created folders for category '{category.name}'")
 
-    except:
-        pass
+    except FileExistsError:
+        logger.debug(f"Folder for category '{category.name}' already exists")
 
 articles = zenpy_client.help_center.articles()
-def get_category_by_section_id(category_list, category_id):
-    # Iterate through the section list
-    for category in category_list:
-        if category.id == category_id:
-            # Return the categoryId of the section
-            return category
 
-    # Handle if section with given ID is not found
-    return None
 
-def get_ObjectInListById(objectList, ojectId):
-    # Iterate through the section list
+def get_ObjectInListById(objectList, object_id):
+    # Iterate through the object list
     for object in objectList:
-        if object.id == ojectId:
-            # Return the categoryId of the section
+        if object.id == object_id:
+            # Return the object if found
             return object
 
-    # Handle if section with given ID is not found
+    # Return None if object with given ID is not found
     return None
 
-#Zenpy has no built in way to retrieve article comments, will do it with a get request directly
-def getArticleComments(articleId):
 
-    url = f'https://{subdomain}.zendesk.com/api/v2/help_center/articles/{articleId}/comments.json'
+# Zenpy has no built-in way to retrieve article comments, will do it with a GET request directly
+def get_article_comments(article_id):
+    url = f'https://{subdomain}.zendesk.com/api/v2/help_center/articles/{article_id}/comments.json'
 
     # Make the GET request
     response = requests.get(url, auth=credentials)
@@ -97,75 +105,80 @@ def getArticleComments(articleId):
     if response.status_code == 200:
         comments = response.json()['comments']
         for comment in comments:
-            print(f"Comment ID: {comment['id']}, Body: {comment['body']}")
+            logger.info(f"Comment ID: {comment['id']}, Body: {comment['body']}")
     else:
-        print(f"Failed to retrieve comments. Status code: {response.status_code}")
+        logger.error(f"Failed to retrieve comments for article {article_id}. Status code: {response.status_code}")
         return None
 
     return comments
 
-def get_attachment(articleId):
 
-    endpointAttachments = f'https://{subdomain}.zendesk.com/api/v2/help_center/articles/{articleId}/attachments'
+def get_attachment(article_id):
+    endpoint_attachments = f'https://{subdomain}.zendesk.com/api/v2/help_center/articles/{article_id}/attachments'
 
-    response = requests.get(endpointAttachments, auth=credentials)
+    response = requests.get(endpoint_attachments, auth=credentials)
     if response.status_code != 200:
-        print('Failed to retrieve attachments with error {}'.format(response.status_code) + 'for article id ' + str(articleId))
+        logger.error(f"Failed to retrieve attachments for article {article_id}. Error code: {response.status_code}")
         return None
 
-        dataAttachments = response.json()
-        return dataAttachments
+    data_attachments = response.json()
+    return data_attachments
+
 
 def download_file(url, destination):
     response = requests.get(url, auth=credentials)
     if response.status_code == 200:
         with open(destination, 'wb') as file:
             file.write(response.content)
-        print(f"File downloaded and saved at {destination}")
+        logger.info(f"File downloaded and saved at {destination}")
     else:
-        print(f"Failed to download file. Status code: {response.status_code}")
+        logger.error(f"Failed to download file from {url}. Status code: {response.status_code}")
 
 
 for article in articles:
-    categoryName = get_ObjectInListById(categories, article.section.category_id).name
-    pathToSaveJson = f"articles/{categoryName}/json"
+    try:
+        category_name = get_ObjectInListById(categories, article.section.category_id).name
+        path_to_save_json = f"articles/{category_name}/json"
 
-    article = article.to_dict()
+        article = article.to_dict()
 
-    # build our content
-    output_dict = {
-        'id': article.get('id'),
-        'url': f"https://support.dalet.com/hc/en-us/articles/{article.get('id')}",
-        'author': zenpy_client.users(id=article.get('author_id')).to_dict().get('name'),
-        'section': get_ObjectInListById(sections.values, article.get('section_id')).name,
-        'name': article.get('name'),
-        'label_names': article.get('label_names'),
-        'body': article.get('body'),
-        'comments': sorted([
-            {
-                'created_at': comment.get('created_at'),
-                'author': zenpy_client.users(id=comment.get('author_id')).to_dict().get('name'),
-                'body': comment.get('body')
-            } for comment in getArticleComments(article.get('id'))
-        ], key=lambda x: x['created_at'])
-    }
+        # Build content
+        output_dict = {
+            'id': article.get('id'),
+            'url': f"https://support.dalet.com/hc/en-us/articles/{article.get('id')}",
+            'author': zenpy_client.users(id=article.get('author_id')).to_dict().get('name'),
+            'section': get_ObjectInListById(sections.values, article.get('section_id')).name,
+            'name': article.get('name'),
+            'label_names': article.get('label_names'),
+            'body': article.get('body'),
+            'comments': sorted([
+                {
+                    'created_at': comment.get('created_at'),
+                    'author': zenpy_client.users(id=comment.get('author_id')).to_dict().get('name'),
+                    'body': comment.get('body')
+                } for comment in get_article_comments(article.get('id'))
+            ], key=lambda x: x['created_at'])
+        }
 
-    print(f"Saving Json for article id {article.get('id')}")
-    with open(os.path.join(pathToSaveJson, f"{article.get('id')}.json"), 'w') as json_to_save:
-        json_to_save.write(json.dumps(output_dict, indent=4))
+        logger.info(f"Saving JSON for article id {article.get('id')}")
+        print(f"Saving Json for article id {article.get('id')}")
+        with open(os.path.join(path_to_save_json, f"{article.get('id')}.json"), 'w') as json_to_save:
+            json_to_save.write(json.dumps(output_dict, indent=4))
 
-    #downloading attachments of article
+        # Download attachments of article
+        attachments = get_attachment(article.get('id'))
+        if attachments:
+            for attachment in attachments['article_attachments']:
+                if not attachment['content_type'] in usefulAttachmentTypes:
+                    continue
 
-    attachments = get_attachment(article.get('id'))
-    if attachments:
-        for attachment in attachments['article_attachments']:
-            if not attachment['content_type'] in usefullAttachmentTypes:
-                continue
+                path_to_save_attachment = f"articles/{category_name}/attachments"
+                filename = attachment['file_name']
+                destination = os.path.join(path_to_save_attachment, filename)
+                url_attachment = 'https://support.dalet.com/hc/en-us/article_attachments/' + str(
+                    attachment['id'])
+                download_file(url_attachment, destination)
 
-            pathToSaveAttachment = f"articles/{categoryName}/attachments"
-            filename = attachment['file_name']
-            destination = os.path.join(pathToSaveAttachment, filename)
-            urlattachment = 'https://support.dalet.com/hc/en-us/article_attachments/' + str(attachment['id'])
-            download_file(urlattachment, destination)
-
-
+    except Exception as e:
+        logger.error(f"An error occurred: {e}" + "for item " + str(article))
+        continue

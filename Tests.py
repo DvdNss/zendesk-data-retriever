@@ -1,17 +1,9 @@
-import json
-import os
-
 from dotenv import find_dotenv, load_dotenv
-from tqdm import tqdm
 from zenpy import Zenpy
+import os
 
 # load .env
 load_dotenv(find_dotenv())
-
-try:
-    os.mkdir('articles')
-except:
-    pass
 
 creds = {
     'email': os.environ.get('ZD_EMAIL'),
@@ -20,25 +12,11 @@ creds = {
 }
 
 # rate limiting of 200
-zenpy_client = Zenpy(proactive_ratelimit=200, **creds)
+zenpy_client = Zenpy(proactive_ratelimit=700, **creds)
 
-articles = zenpy_client.get_articles()
+article = zenpy_client.help_center.articles(id=9073079217181)
 
-print(f"\nArticles found: {len(articles)}.\n")
+comments = # Construct the URL
+url = f'https://dalet.zendesk.com/api/v2/help_center/articles/9073079217181/comments.json'
 
-# iterate through articles
-for article in tqdm(articles, "Parsing articles"):
-    article = article.to_dict()
 
-    # build our content
-    output_dict = {
-        'id': article.get('id'),
-        'url': f"https://dalet.zendesk.com/hc/en-us/articles/{article.get('id')}",
-        'title': article.get('title'),
-        'body': article.get('body'),
-        # Add more fields as needed
-    }
-
-    # write to local folder
-    with open(os.path.join("articles", f"{article.get('id')}.json"), 'w') as json_to_save:
-        json_to_save.write(json.dumps(output_dict, indent=4))

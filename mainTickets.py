@@ -14,7 +14,7 @@ logger = logging.getLogger('my_logger')
 logger.setLevel(logging.DEBUG)  # Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 # Create file handler and set its logging level
-file_handler = logging.FileHandler('Logs/ticketsLogger.log')
+file_handler = logging.FileHandler('Logs/AllticketsLogger.log')
 file_handler.setLevel(logging.DEBUG)  # Set the logging level for this handler
 
 # Create formatter
@@ -46,9 +46,9 @@ page_number = 1
 
 while True:
     # Fetch tickets for the current page
-    page_tickets = zenpy_client.search(type='ticket', tags=['galaxy'], page=page_number)
-    # tickets = zenpy_client.search(type='ticket')  # all tickets
-    # tickets = zenpy_client.search(type='ticket', tags=['flex'])  # flex tickets
+    #page_tickets = zenpy_client.search(type='ticket', tags=['galaxy'], page=page_number)
+    page_tickets = zenpy_client.search(type='ticket', page=page_number)  # all tickets
+    # page_tickets = zenpy_client.search(type='ticket', tags=['flex'], page=page_number)  # flex tickets
 
     # Append fetched tickets to the list of all tickets
     all_tickets.extend(page_tickets)

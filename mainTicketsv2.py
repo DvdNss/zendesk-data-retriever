@@ -1,6 +1,5 @@
 import json
 import os
-
 from dotenv import find_dotenv, load_dotenv
 from tqdm import tqdm
 from zenpy import Zenpy
@@ -37,19 +36,15 @@ creds = {
 }
 
 # rate limiting of 200
-zenpy_client = Zenpy(proactive_ratelimit=200, **creds)
+zenpy_client = Zenpy(proactive_ratelimit=600, **creds)
 
-
-# Initialize page number
-page_number = 1
-
-total_tickets = len(zenpy_client.search(type='ticket', page=page_number))
+total_tickets = len(zenpy_client.search(type='ticket'))
 logger.info(f"Total number of tickets is {total_tickets}")
 print(f"Total number of tickets is {total_tickets}")
 
 count_savedTickets = 0
 
-def saveTickets(tickets):
+def saveTickets(tickets, count_savedTickets=None):
     # iterate through tickets
     for ticket in tqdm(tickets, "Parsing tickets"):
         try:
@@ -88,33 +83,27 @@ def saveTickets(tickets):
             with open(os.path.join("tickets/processed", f"{ticket.get('id')}.json"), 'w') as json_to_save:
                 json_to_save.write(json.dumps(output_dict, indent=4))
 
+            count_savedTickets += 1
 
         except Exception as e:
             logger.error(f"An error occurred: {e}" + "for item " + str(ticket))
             continue
 
+page_number = 1
+page_size = 100  # Maximum page size allowed by Zendesk API
+
 while True:
-    # Fetch tickets for the current page
-    #page_tickets = zenpy_client.search(type='ticket', tags=['galaxy'], page=page_number)
-    page_tickets = zenpy_client.search(type='ticket', page=page_number)  # all tickets
+    page_tickets = zenpy_client.search(type='ticket', page=page_number, per_page=page_size)
     logger.info("page_number is " + str(page_number))
-    print ("page_number is " + str(page_number))
+    print("page_number is " + str(page_number))
 
-    print ("len page_tickets is " + str(len(page_tickets)))
-    logger.info("len page_tickets is " + str(len(page_tickets)))
-    # page_tickets = zenpy_client.search(type='ticket', tags=['flex'])  # flex tickets
-
-    saveTickets(page_tickets)
-
-    # Check if there are more pages
-    if len(page_tickets) < 100:  # If less than 100 tickets on the page, it's the last page
-        print("No more pages, last len(page_tickets) is " + str(len(page_tickets)))
-        logger.info("No more pages, last len(page_tickets) is " + str(len(page_tickets)))
+    if not page_tickets:
+        print("No more tickets to fetch.")
+        logger.info("No more tickets to fetch.")
         break
 
-    # Move to the next page
+    saveTickets(page_tickets, count_savedTickets)
     page_number += 1
-    count_savedTickets += len(page_tickets)
-    print("Total tickets handled so far " + str(count_savedTickets))
-    logger.info("Total tickets handled so far " + str(count_savedTickets))
+    print("Total tickets handled: ", count_savedTickets)
+    logger.info("Total tickets handled: ", count_savedTickets)
 

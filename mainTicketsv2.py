@@ -36,7 +36,7 @@ creds = {
 }
 
 # rate limiting of 200
-zenpy_client = Zenpy(proactive_ratelimit=600, **creds)
+zenpy_client = Zenpy(proactive_ratelimit=500, **creds)
 
 total_tickets = len(zenpy_client.search(type='ticket'))
 logger.info(f"Total number of tickets is {total_tickets}")
@@ -44,8 +44,10 @@ print(f"Total number of tickets is {total_tickets}")
 
 count_savedTickets = 0
 
-def saveTickets(tickets, count_savedTickets=None):
+def saveTickets(tickets):
     # iterate through tickets
+    global count_savedTickets
+
     for ticket in tqdm(tickets, "Parsing tickets"):
         try:
             ticket = ticket.to_dict()
@@ -102,8 +104,8 @@ while True:
         logger.info("No more tickets to fetch.")
         break
 
-    saveTickets(page_tickets, count_savedTickets)
+    saveTickets(page_tickets)
     page_number += 1
-    print("Total tickets handled: ", count_savedTickets)
-    logger.info("Total tickets handled: ", count_savedTickets)
+    logger.info("Total tickets handled: " + str(count_savedTickets))
+    logger.info("Total tickets handled: " + str(count_savedTickets))
 
